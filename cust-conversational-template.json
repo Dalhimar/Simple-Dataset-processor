@@ -1,0 +1,3 @@
+{
+    "conversation,message,input,output": "Conversation #: %conversation%\nExchange #: %message%\nUSER: %input%\nASSISTANT: %output%"
+}
