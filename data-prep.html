@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text Windows Layout with Interactive Features</title>
+<style>
+  body {
+    display: grid;
+    height: 90vh;
+    margin: 0;
+    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr 1fr;
+    gap: 10px;
+    padding: 10px;
+	background-color:#969696;
+  }
+  .text-window {
+    border: 2px solid #000;
+    padding: 10px;
+    overflow: auto;
+  }
+  .left, .right {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+  }
+  .upper-middle {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .lower-middle {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .right {
+    grid-column: 3;
+    grid-row: 1 / span 4;
+  }
+  .counter, .buttons {
+    position: relative;
+    top: 15%;
+    grid-column: 2;
+	grid-row 3;
+    display: flex;
+	height: 25%;
+    justify-content: center;
+    align-items: center;
+	
+  }
+  textarea {
+    resize: none;
+	background-color: #d4d4d4;
+	font-size: 18px;
+  }
+  .info-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center the content vertically */
+  align-items: center; /* Center the content horizontally */
+  padding: 10px; /* Add some padding */
+  background-color: #f0f0f0; /* Light background for the info box */
+  border-radius: 10px; /* Optional: adds rounded corners */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Optional: adds a slight shadow for depth */
+}
+
+
+  
+</style>
+</head>
+<body>
+<input type="file" id="fileInput" style="display: none;" accept=".txt" onchange="loadFile()">
+<textarea class="text-window left"></textarea>
+<textarea class="text-window upper-middle">Single newlines are converted to \n. Double newlines, or "----" separate your input and output.</textarea>
+<textarea class="text-window lower-middle"></textarea>
+<textarea class="text-window right"></textarea>
+
+<div class="counter" style="grid-column: 2; grid-row: 3; text-align: center;">
+  <button onclick="updateCounter('conversation', -1)">-</button>
+  <input type="number" id="conversationNumber" value="1" oninput="formatText()">
+  <button onclick="updateCounter('conversation', +1)">+</button>
+  Conversation Number
+  <button onclick="updateCounter('message', -1)">-</button>
+  <input type="number" id="messageNumber" value="1" oninput="formatText()">
+  <button onclick="updateCounter('message', +1)">+</button>
+  Message Number
+</div>
+<div class="buttons" style="grid-column: 2; grid-row: 3 / span 2;">
+  <button id="loadButton" onclick="document.getElementById('fileInput').click();" style="height:50px">Load</button>
+  <button id="selectTextButton" onclick="selectTextUpToDoubleNewline()" style="height:50px">Select Text</button>
+  <button id="transferButton" onclick="transferText()" style="height:50px">Transfer</button>
+  <button id="approveEntryButton" onclick="approveEntry()" style="height:50px">Approve Entry</button>
+  <button id="SelTraApp" onclick="selectTextUpToDoubleNewline(), transferText(), approveEntry()" style="height:50px">Select, Transfer, Approve</button>
+  <button id="saveButton" onclick="saveText()" style="height:50px">Save</button>
+</div>
+
+<div class="info-box" style="grid-column: 2; grid-row: 4; text-align: center;">
+  <p style="margin-bottom: 5px; margin-top: 0px;"><b>Program Info:</b></p>
+  <p style="margin-bottom: 5px; margin-top: 5px;">This program is a simple conversational dataset prep tool. You can load a text file, the contents of which will appear in the left window. You can manually highlight the entries you want to edit, or use the "select text" button to select up to the second double newline. Pressing transfer will cut and paste the selected text into the upper middle window. The program will automatically cut the text in the upper middle window by finding either the first instance of a double newline, or the string "----", and put it into a conversational JSON format, displayed in the lower middle text box. You can then use the "Approve Entry" button to send the JSON sting to the right hand window. It will append each approved entry to the list that is already there and add 1 to the message number. Changing the conversation number will reset the message number to 1. It will try to replace the " with \" automatically to make it JSON compatible.</p>
+  <p style="margin-bottom: 5px; margin-top: 5px;">This is the JSON template used:</p>
+  <p style="margin-bottom: 5px; margin-top: 5px;">{
+    "conversation,message,input,output": "Conversation #: %conversation%\nExchange #: %message%\nUSER: %input%\nASSISTANT: %output%"
+}</p>
+</div>
+
+
+<script>
+  // Pretty sure I used this to load the file?
+  function loadFile() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result; // No need to replace \n with <br> for <textarea>
+        document.querySelector('.left').value = content; // Use value for <textarea>
+      };
+      reader.readAsText(file);
+    }
+  }
+
+  // Take the highlighted text from the left, copy and paste it into the upper middle
+  function transferText() {
+    const leftTextArea = document.querySelector('.left');
+    const upperMiddleTextArea = document.querySelector('.upper-middle');
+
+    // Get the selected text from the left textarea
+    const start = leftTextArea.selectionStart;
+    const end = leftTextArea.selectionEnd;
+    let selectedText = leftTextArea.value.substring(start, end);
+
+    // Remove trailing newlines from the selected text
+    selectedText = selectedText.replace(/\n+$/, '');
+
+    // Append the selected text to the upper middle textarea
+    upperMiddleTextArea.value = selectedText;
+
+    // Remove the selected text from the left textarea
+    leftTextArea.value = leftTextArea.value.substring(0, start) + leftTextArea.value.substring(end);
+    formatText();
+    cleanLeftTextArea();
+  }
+
+  // Update the counters, no, not the one in your kitchen
+  function updateCounter(type, delta) {
+  const counter = document.getElementById(`${type}Number`);
+  let value = parseInt(counter.value, 10) + delta;
+  value = Math.max(value, 1); // Prevent counter from going below 1
+  counter.value = value;
+
+  if (type === 'conversation') {
+    document.getElementById('messageNumber').value = 1; // Reset message number to 1
+  }
+
+  formatText(); // Call formatText to update the output based on new counter values
+}
+
+  // Function to monitor changes in the upper middle window and format text
+  let observer = new MutationObserver(mutations => {
+    formatText();
+  });
+
+  observer.observe(document.querySelector('.upper-middle'), { childList: true, subtree: true });
+
+  // Take the Upper Middle textarea, chop it, then insert it into a predefined JSON format
+  function formatText() {
+    const upperMiddleTextarea = document.querySelector('.upper-middle');
+    const textContent = upperMiddleTextarea.value; // Direct plaintext from textarea
+
+    const conversationNumber = document.getElementById('conversationNumber').value;
+    const messageNumber = document.getElementById('messageNumber').value;
+
+    // Process the textContent to handle newline characters
+    let parts = textContent.split(/\n\n|----/); // Split using double line breaks or "----"
+
+    // Replace single \n with \\n in parts to escape newlines in JSON format
+    // This operation is done after splitting to not interfere with the separator
+    let inputText = parts.length > 0 ? parts[0].replace(/\n/g, "\\n") : '';
+    let outputText = parts.length > 1 ? parts[1].replace(/\n/g, "\\n") : '';
+
+    // Escape double quotes for valid JSON string
+    inputText = inputText.replace(/"/g, '\"');
+    outputText = outputText.replace(/"/g, '\"');
+
+    // Construct the JSON string with formatted input and output
+    let formattedText = `{"conversation":"${conversationNumber}","message":"${messageNumber}","input":"${inputText}","output":"${outputText}"}`;
+
+    // Display the formatted text
+    document.querySelector('.lower-middle').textContent = formattedText;
+}
+
+  // Add keyup event listener to update text whenever a key is pressed
+  document.addEventListener('keyup', function(event) {
+    formatText();
+  });
+
+  // I think this is used to save?
+  function saveText() {
+    const text = document.querySelector('.right').value;
+    const blob = new Blob([text], { type: 'text/plain' });
+
+    // Ask the user for a filename
+    let filename = prompt("Please enter a filename for the saved text:", "savedText.txt");
+    if (filename) { // Proceed if the user didn't cancel the prompt
+      const anchor = document.createElement('a');
+      anchor.download = filename; // Use the user-provided filename
+      anchor.href = window.URL.createObjectURL(blob);
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+    }
+  }
+
+  // Take the formatted text from the middle lower textarea and transfer it over to the right hand window
+  function approveEntry() {
+    const lowerMiddleTextArea = document.querySelector('.lower-middle');
+    const upperMiddleTextArea = document.querySelector('.upper-middle'); // Reference to upper middle textarea
+    const rightTextArea = document.querySelector('.right');
+
+    try {
+        // Attempt to parse the JSON content of the lowerMiddleTextArea
+        const entry = JSON.parse(lowerMiddleTextArea.textContent);
+
+        // Check if both input and output values are present and not empty
+        if (entry.input && entry.input.trim() && entry.output && entry.output.trim()) {
+            // Append with comma and newline for JSON formatting
+            rightTextArea.value += (rightTextArea.value ? ',\n' : '') + JSON.stringify(entry);
+
+            // Clear the text in the upper middle textarea window
+            upperMiddleTextArea.value = '';
+
+            // Clear the lower middle textarea as well
+            lowerMiddleTextArea.textContent = '';
+
+            // Increment message number
+            const messageCounter = document.getElementById('messageNumber');
+            messageCounter.value = parseInt(messageCounter.value) + 1;
+        } else {
+            // If either input or output is empty, alert the user or handle accordingly
+            console.log("Both 'input' and 'output' must have non-empty values.");
+        }
+    } catch (error) {
+        // If parsing fails, alert the user or handle the error accordingly
+        console.error("Error parsing JSON from lower middle text area:", error);
+    }
+}
+
+
+  // Clean out useless newlines from the begining of the loaded text file
+  function cleanLeftTextArea() {
+    const leftTextArea = document.querySelector('.left');
+    // While the first character is a newline, remove it
+    while (leftTextArea.value.startsWith('\n')) {
+      leftTextArea.value = leftTextArea.value.substring(1);
+    }
+  }
+  
+  // Search for, and select text up to the second double newline
+  function selectTextUpToDoubleNewline() {
+    const leftTextArea = document.querySelector('.left');
+    const text = leftTextArea.value;
+    // Find the index of the first double newline
+    const doubleNewlineIndex = text.indexOf('\n\n', text.indexOf('\n\n') + 2);
+
+    if (doubleNewlineIndex !== -1) {
+      // If a double newline is found, select text up to this point
+      leftTextArea.setSelectionRange(0, doubleNewlineIndex + 1);
+    } else {
+      // If no double newline is found, select the entire text
+      leftTextArea.setSelectionRange(0, text.length);
+    }
+
+  // Focus the textarea to make the selection visible to the user
+  leftTextArea.focus();
+}
+
+  // Reset the message number to 1 when the user sets the conversation number
+  function onConversationNumberChange() {
+    document.getElementById('messageNumber').value = 1; // Set message number to 1
+    formatText(); // Call formatText function
+  }
+
+
+</script>
+</body>
+</html>
