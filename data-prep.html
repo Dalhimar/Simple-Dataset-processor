@@ -88,9 +88,11 @@
   <button id="loadButton" onclick="document.getElementById('fileInput').click();" style="height:50px">Load</button>
   <button id="selectTextButton" onclick="selectTextUpToDoubleNewline()" style="height:50px">Select Text</button>
   <button id="transferButton" onclick="transferText()" style="height:50px">Transfer</button>
-  <button id="approveEntryButton" onclick="approveEntry()" style="height:50px">Approve Entry</button>
+  <button id="SelTra" onclick="selectTextUpToDoubleNewline(), transferText()" style="height:50px">Select and Transfer</button>
+  <button id="approveEntryButton" onclick="approveEntry(), saveState()" style="height:50px">Approve Entry</button>
   <button id="SelTraApp" onclick="selectTextUpToDoubleNewline(), transferText(), approveEntry()" style="height:50px">Select, Transfer, Approve</button>
-  <button id="saveButton" onclick="saveText()" style="height:50px">Save</button>
+  <button onclick="resumeState()" style="height:50px">Resume State</button>
+  <button id="saveButton" onclick="saveText(), saveState()" style="height:50px">Save</button>
 </div>
 
 <div class="info-box" style="grid-column: 2; grid-row: 4; text-align: center;">
@@ -280,7 +282,78 @@
     formatText(); // Call formatText function
   }
 
+  // Funtion to save the current progress of the user to localstorage
+  function saveState() {
+    const leftText = document.querySelector('.text-window.left').value;
+    const rightText = document.querySelector('.text-window.right').value;
 
+    // Save the text from both textareas to localStorage
+    localStorage.setItem('rawData', leftText);
+    localStorage.setItem('currentProgress', rightText);
+
+    // Notify the user
+    // alert('State saved!');
+  }
+
+  // Function to check for and load appropriate files for resuming the state.
+  function resumeState() {
+  if (localStorage.getItem('rawData') && localStorage.getItem('currentProgress')) {
+    const rawData = localStorage.getItem('rawData');
+    let currentProgress = localStorage.getItem('currentProgress').trim(); // Trim whitespace for accurate checks
+
+    document.querySelector('.text-window.left').value = rawData;
+
+    // Ensure the string starts with [
+    if (!currentProgress.startsWith('[')) {
+      currentProgress = '[' + currentProgress;
+    }
+
+    // Ensure the string ends properly for parsing
+    if (currentProgress.endsWith(',')) {
+      currentProgress = currentProgress.substring(0, currentProgress.length - 1) + ']'; // Replace final comma with ]
+    } else if (currentProgress.endsWith('}')) {
+      currentProgress += ']'; // Append ] if ending with }
+    }
+
+    // Remove the trailing ] for editing purposes
+    let editableProgress = currentProgress;
+    if (editableProgress.endsWith(']')) {
+      editableProgress = editableProgress.substring(0, editableProgress.length - 1);
+    }
+
+    // Set the modified string without the trailing ] for editing
+    document.querySelector('.text-window.right').value = editableProgress;
+
+    try {
+      const entries = JSON.parse(currentProgress); // Parse the original formatted string
+      let highestConversation = 0;
+      let highestMessageInConversation = 0;
+
+      entries.forEach(entry => {
+        const conversation = parseInt(entry.conversation, 10);
+        const message = parseInt(entry.message, 10);
+        
+        if (conversation > highestConversation) {
+          highestConversation = conversation;
+          highestMessageInConversation = message;
+        } else if (conversation === highestConversation && message > highestMessageInConversation) {
+          highestMessageInConversation = message;
+        }
+      });
+
+      document.getElementById('conversationNumber').value = highestConversation;
+      document.getElementById('messageNumber').value = highestMessageInConversation + 1;
+
+      alert('State resumed!');
+    } catch (error) {
+      console.error('Error parsing JSON from current progress:', error);
+      alert('Error resuming state. Please check the format of your saved data.');
+    }
+  } else {
+    alert('No saved state found.');
+  }
+}
+	
 </script>
 </body>
 </html>
